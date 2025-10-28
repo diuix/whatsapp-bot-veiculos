@@ -88,6 +88,16 @@ class WhatsAppBot {
         const clienteNome = await this.obterNomeCliente(chatId);
         const textoMensagem = message.body || 'Mensagem sem texto';
         
+        // Ignorar mensagens muito antigas (mais de 5 minutos)
+        const agora = new Date();
+        const timestampMensagem = new Date(message.timestamp * 1000);
+        const diferencaMinutos = (agora - timestampMensagem) / (1000 * 60);
+        
+        if (diferencaMinutos > 5) {
+            console.log(`⏰ Ignorando mensagem antiga de ${clienteNome} (${diferencaMinutos.toFixed(1)} min atrás)`);
+            return;
+        }
+        
         console.log(`📨 Mensagem de ${clienteNome}: "${textoMensagem}"`);
         
         // Verificar se é nova conversa ou conversa encerrada
