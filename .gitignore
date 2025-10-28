@@ -1,0 +1,8 @@
+# Arquivos que não devem ser enviados para o GitHub
+node_modules/
+.env
+*.log
+.DS_Store
+.wwebjs_auth/
+.wwebjs_cache/
+session/
