@@ -90,8 +90,8 @@ class WhatsAppBot {
         
         console.log(`📨 Mensagem de ${clienteNome}: "${textoMensagem}"`);
         
-        // Verificar se é nova conversa
-        if (!this.conversasAtivas.has(chatId)) {
+        // Verificar se é nova conversa ou conversa encerrada
+        if (!this.conversasAtivas.has(chatId) || this.conversasAtivas.get(chatId).status === 'encerrada') {
             await this.notificarNovaConversa(chatId, clienteNome, textoMensagem);
         } else {
             // Atualizar última mensagem da conversa existente
@@ -127,15 +127,15 @@ class WhatsAppBot {
 💬 Mensagem: ${mensagem}
 ⏰ ${timestamp}
 
-⚠️ Aguardando atendimento...`;
-
-            // Enviar mensagem simples (sem botões por enquanto)
-            await this.client.sendMessage(this.grupoId, 
-                `${notificacao}
+⚠️ Aguardando atendimento...
 
 Para pegar esta conversa, responda:
-"PEGAR ${numeroConversa}"`
-            );
+"PEGAR ${numeroConversa}"
+
+Para encerrar uma conversa ativa, responda:
+"ENCERRAR [número]"`;
+
+            await this.client.sendMessage(this.grupoId, notificacao);
             
             // Marcar como conversa ativa
             this.conversasAtivas.set(chatId, {
@@ -175,6 +175,9 @@ Para pegar esta conversa, responda:
             if (textoMensagem.startsWith('PEGAR ')) {
                 const numeroConversa = parseInt(textoMensagem.replace('PEGAR ', '').trim());
                 await this.processarPegarConversa(message, numeroConversa);
+            } else if (textoMensagem.startsWith('ENCERRAR ')) {
+                const numeroConversa = parseInt(textoMensagem.replace('ENCERRAR ', '').trim());
+                await this.processarEncerrarConversa(message, numeroConversa);
             }
             
         } catch (error) {
@@ -253,6 +256,60 @@ ${linkConversa}
             }
         } catch (error) {
             console.error('❌ Erro ao processar pegar conversa:', error);
+        }
+    }
+
+    async processarEncerrarConversa(message, numeroConversa) {
+        try {
+            // Buscar conversa pelo número
+            let conversaEncontrada = null;
+            let chatIdEncontrado = null;
+            
+            for (const [chatId, conversa] of this.conversasAtivas.entries()) {
+                if (conversa.numero === numeroConversa && conversa.status === 'atendida') {
+                    conversaEncontrada = conversa;
+                    chatIdEncontrado = chatId;
+                    break;
+                }
+            }
+            
+            if (conversaEncontrada) {
+                const vendedorNome = await this.obterNomeCliente(message.author);
+                
+                // Marcar como encerrada
+                conversaEncontrada.status = 'encerrada';
+                conversaEncontrada.timestampEncerramento = new Date();
+                
+                // Remover da lista de conversas encaminhadas
+                this.conversasEncaminhadas.delete(conversaEncontrada.vendedorId);
+                
+                // Enviar mensagem de despedida para o cliente
+                await this.client.sendMessage(chatIdEncontrado, 
+                    `Obrigado pelo contato! Se precisar de mais alguma coisa, estamos aqui para ajudar.`
+                );
+                
+                // Notificar no grupo
+                await this.client.sendMessage(this.grupoId, 
+                    `🔚 ${vendedorNome} encerrou a conversa [#${conversaEncontrada.numero}] com ${conversaEncontrada.cliente}`
+                );
+                
+                console.log(`🔚 ${vendedorNome} encerrou a conversa [#${conversaEncontrada.numero}] com ${conversaEncontrada.cliente}`);
+            } else {
+                // Mostrar conversas ativas para ajudar
+                const conversasAtivas = Array.from(this.conversasAtivas.entries())
+                    .filter(([_, conversa]) => conversa.status === 'atendida')
+                    .map(([chatId, conversa]) => 
+                        `• [#${conversa.numero}] ${conversa.cliente} (${chatId.replace('@c.us', '')})`
+                    ).join('\n');
+                
+                await this.client.sendMessage(this.grupoId, 
+                    `❌ Conversa #${numeroConversa} não encontrada ou não está sendo atendida\n\n` +
+                    `📋 Conversas ativas (sendo atendidas):\n${conversasAtivas}\n\n` +
+                    `💡 Use: ENCERRAR [número]`
+                );
+            }
+        } catch (error) {
+            console.error('❌ Erro ao processar encerrar conversa:', error);
         }
     }
 
