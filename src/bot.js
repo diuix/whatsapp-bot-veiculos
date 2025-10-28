@@ -32,7 +32,10 @@ class WhatsAppBot {
     setupEvents() {
         this.client.on('qr', (qr) => {
             console.log('📱 Escaneie o QR Code com seu WhatsApp Business:');
+            console.log('='.repeat(50));
             qrcode.generate(qr, { small: true });
+            console.log('='.repeat(50));
+            console.log('💡 Dica: Se não conseguir escanear, faça screenshot e escaneie a imagem');
         });
 
         this.client.on('ready', () => {
